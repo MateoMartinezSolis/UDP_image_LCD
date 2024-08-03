@@ -1,145 +1,205 @@
 /*
- * Copyright 2016-2024 NXP
+ * Copyright (c) 2016, Freescale Semiconductor, Inc.
+ * Copyright 2016-2020 NXP
  * All rights reserved.
+ *
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-/**
- * @file    probando_con_lcd.c
- * @brief   Application entry point.
- */
-#include <stdio.h>
-#include "board.h"
-#include "peripherals.h"
+/*******************************************************************************
+ * Includes
+ ******************************************************************************/
+#include "lwip/opt.h"
+
+#if LWIP_NETCONN
+
+#include "udpecho.h"
+#include "lwip/netifapi.h"
+#include "lwip/tcpip.h"
+#include "netif/ethernet.h"
+#include "enet_ethernetif.h"
+
 #include "pin_mux.h"
 #include "clock_config.h"
-#include "MK64F12.h"
-#include "fsl_debug_console.h"
-/* TODO: insert other include files here. */
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "task.h"
-#include "lcd_driver.h"
-#include "rtos_spi.h"
-/* TODO: insert other definitions and declarations here. */
-SemaphoreHandle_t semInit;
-void taskInit (void* args);
-void taskSend (void* args);
+#include "board.h"
+#include "fsl_phy.h"
+
+#include "fsl_phyksz8081.h"
+#include "fsl_enet_mdio.h"
+#include "fsl_device_registers.h"
 
 
+/*******************************************************************************
+ * Definitions
+ ******************************************************************************/
 
-static uint8_t Cangrejo_perron_mono [] = {
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x1E, 0x3E, 0xFE, 0xFE, 0xFE, 0xFE,
-		0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0x00, 0x00, 0x00, 0xFE, 0xFE, 0xFE,
-		0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0x7E, 0x3E, 0x0E, 0x06, 0x82, 0xC0,
-		0xE0, 0xF0, 0xF8, 0xFC, 0xF8, 0xF8, 0xF8, 0xF8, 0xF0, 0xF0, 0xF0, 0xE0,
-		0xE0, 0xC0, 0xC0, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0,
-		0xE0, 0xF0, 0xF0, 0xF0, 0xF8, 0xF8, 0xF8, 0x78, 0x3C, 0x3D, 0x3F, 0x9F,
-		0x9F, 0x9F, 0xDF, 0xCF, 0xCF, 0xCF, 0xE0, 0xE0, 0xE0, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFD, 0xFC, 0xFC, 0xF8, 0xF8, 0xF1, 0xF3, 0xE3,
-		0x07, 0x07, 0x0F, 0x0F, 0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFC, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x0F, 0x1F, 0x1F,
-		0x3F, 0x3F, 0x7F, 0x7F, 0x7F, 0xF9, 0xF0, 0xE0, 0xC0, 0xC6, 0xCF, 0x8F,
-		0x9F, 0x9F, 0x9F, 0xBF, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F,
-		0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xEF, 0xEF, 0xC7, 0x87, 0x03, 0x13, 0x39,
-		0x78, 0xF8, 0xFC, 0xFE, 0xFF, 0xFF, 0xFF, 0xBF, 0x3F, 0x3F, 0x1F, 0x1F,
-		0x0F, 0x0F, 0x07, 0x07, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0, 0xE0, 0xF9, 0xFD,
-		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-		0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE,
-		0xFC, 0xF8, 0xF0, 0xF1, 0xE3, 0xC7, 0x87, 0x0F, 0x1F, 0x3F, 0x7F, 0x7E,
-		0xFC, 0xFC, 0xF8, 0xF8, 0xF0, 0xF0, 0xE0, 0xE0, 0xC0, 0x80, 0x80, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC0, 0xE0,
-		0xF0, 0x70, 0x30, 0x38, 0x18, 0x08, 0x0A, 0x0B, 0x03, 0x03, 0x03, 0x03,
-		0xFB, 0xFB, 0xFB, 0xFB, 0x03, 0x03, 0x03, 0x03, 0x03, 0xF8, 0xF8, 0xF8,
-		0xF0, 0x03, 0x03, 0x03, 0x03, 0x83, 0xC3, 0xE3, 0xF3, 0x73, 0x33, 0x3B,
-		0x1B, 0x0B, 0x0B, 0x0B, 0x03, 0x03, 0x03, 0x03, 0xFA, 0xFA, 0xF8, 0xF8,
-		0xF8, 0x19, 0x1B, 0x1B, 0x1B, 0x1B, 0x1B, 0x1B, 0x03, 0x03, 0x03, 0x03,
-		0xFB, 0xFA, 0xFA, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x0F, 0x1F, 0x3F,
-		0x70, 0x70, 0x60, 0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x7F, 0x7F, 0x7F, 0x7F, 0x40, 0x40, 0x40, 0x40, 0x40, 0x7F, 0x7F, 0x7F,
-		0x3F, 0x00, 0x00, 0x00, 0x07, 0x0F, 0x1F, 0x3F, 0x70, 0x70, 0x60, 0x40,
-		0x40, 0x00, 0x00, 0x00, 0x10, 0x10, 0x10, 0x10, 0x7F, 0x7F, 0x7F, 0x7F,
-		0x7F, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x00, 0x00, 0x00, 0x00,
-		0x7F, 0x7F, 0x7F, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
+/* @TEST_ANCHOR */
 
+/* IP address configuration. */
+#ifndef configIP_ADDR0
+#define configIP_ADDR0 192
+#endif
+#ifndef configIP_ADDR1
+#define configIP_ADDR1 168
+#endif
+#ifndef configIP_ADDR2
+#define configIP_ADDR2 0
+#endif
+#ifndef configIP_ADDR3
+#define configIP_ADDR3 102
+#endif
 
-/*
- * @brief   Application entry point.
+/* Netmask configuration. */
+#ifndef configNET_MASK0
+#define configNET_MASK0 255
+#endif
+#ifndef configNET_MASK1
+#define configNET_MASK1 255
+#endif
+#ifndef configNET_MASK2
+#define configNET_MASK2 255
+#endif
+#ifndef configNET_MASK3
+#define configNET_MASK3 0
+#endif
+
+/* Gateway address configuration. */
+#ifndef configGW_ADDR0
+#define configGW_ADDR0 192
+#endif
+#ifndef configGW_ADDR1
+#define configGW_ADDR1 168
+#endif
+#ifndef configGW_ADDR2
+#define configGW_ADDR2 0
+#endif
+#ifndef configGW_ADDR3
+#define configGW_ADDR3 100
+#endif
+
+/* MAC address configuration. */
+#ifndef configMAC_ADDR
+#define configMAC_ADDR                     \
+    {                                      \
+        0x02, 0x12, 0x13, 0x10, 0x15, 0x11 \
+    }
+#endif
+
+/* Address of PHY interface. */
+#define EXAMPLE_PHY_ADDRESS BOARD_ENET0_PHY_ADDRESS
+
+/* MDIO operations. */
+#define EXAMPLE_MDIO_OPS enet_ops
+
+/* PHY operations. */
+#define EXAMPLE_PHY_OPS phyksz8081_ops
+
+/* ENET clock frequency. */
+#define EXAMPLE_CLOCK_FREQ CLOCK_GetFreq(kCLOCK_CoreSysClk)
+
+#ifndef EXAMPLE_NETIF_INIT_FN
+/*! @brief Network interface initialization function. */
+#define EXAMPLE_NETIF_INIT_FN ethernetif0_init
+#endif /* EXAMPLE_NETIF_INIT_FN */
+
+/*! @brief Stack size of the temporary lwIP initialization thread. */
+#define INIT_THREAD_STACKSIZE 1024
+
+/*! @brief Priority of the temporary lwIP initialization thread. */
+#define INIT_THREAD_PRIO DEFAULT_THREAD_PRIO
+
+/*******************************************************************************
+ * Prototypes
+ ******************************************************************************/
+
+/*******************************************************************************
+ * Variables
+ ******************************************************************************/
+
+static mdio_handle_t mdioHandle = {.ops = &EXAMPLE_MDIO_OPS};
+static phy_handle_t phyHandle   = {.phyAddr = EXAMPLE_PHY_ADDRESS, .mdioHandle = &mdioHandle, .ops = &EXAMPLE_PHY_OPS};
+
+/*******************************************************************************
+ * Code
+ ******************************************************************************/
+
+/*!
+ * @brief Initializes lwIP stack.
+ *
+ * @param arg unused
  */
-int main(void) {
+static void stack_init(void *arg)
+{
+    static struct netif netif;
+    ip4_addr_t netif_ipaddr, netif_netmask, netif_gw;
+    ethernetif_config_t enet_config = {
+        .phyHandle  = &phyHandle,
+        .macAddress = configMAC_ADDR,
+    };
 
-    /* Init board hardware. */
+    LWIP_UNUSED_ARG(arg);
+
+    mdioHandle.resource.csrClock_Hz = EXAMPLE_CLOCK_FREQ;
+
+    IP4_ADDR(&netif_ipaddr, configIP_ADDR0, configIP_ADDR1, configIP_ADDR2, configIP_ADDR3);
+    IP4_ADDR(&netif_netmask, configNET_MASK0, configNET_MASK1, configNET_MASK2, configNET_MASK3);
+    IP4_ADDR(&netif_gw, configGW_ADDR0, configGW_ADDR1, configGW_ADDR2, configGW_ADDR3);
+
+    tcpip_init(NULL, NULL);
+
+    netifapi_netif_add(&netif, &netif_ipaddr, &netif_netmask, &netif_gw, &enet_config, EXAMPLE_NETIF_INIT_FN,
+                       tcpip_input);
+    netifapi_netif_set_default(&netif);
+    netifapi_netif_set_up(&netif);
+
+    PRINTF("\r\n************************************************\r\n");
+    PRINTF(" UDP Echo example\r\n");
+    PRINTF("************************************************\r\n");
+    PRINTF(" IPv4 Address     : %u.%u.%u.%u\r\n", ((u8_t *)&netif_ipaddr)[0], ((u8_t *)&netif_ipaddr)[1],
+           ((u8_t *)&netif_ipaddr)[2], ((u8_t *)&netif_ipaddr)[3]);
+    PRINTF(" IPv4 Subnet mask : %u.%u.%u.%u\r\n", ((u8_t *)&netif_netmask)[0], ((u8_t *)&netif_netmask)[1],
+           ((u8_t *)&netif_netmask)[2], ((u8_t *)&netif_netmask)[3]);
+    PRINTF(" IPv4 Gateway     : %u.%u.%u.%u\r\n", ((u8_t *)&netif_gw)[0], ((u8_t *)&netif_gw)[1],
+           ((u8_t *)&netif_gw)[2], ((u8_t *)&netif_gw)[3]);
+    PRINTF("************************************************\r\n");
+
+    udpecho_init();
+
+    vTaskDelete(NULL);
+}
+
+/*!
+ * @brief Main function
+ */
+int main(void)
+{
+
+	gpio_pin_config_t b22 =
+	{
+			kGPIO_DigitalOutput,
+			1
+	};
+    SYSMPU_Type *base = SYSMPU;
     BOARD_InitBootPins();
     BOARD_InitBootClocks();
-    BOARD_InitBootPeripherals();
-#ifndef BOARD_INIT_DEBUG_CONSOLE_PERIPHERAL
-    /* Init FSL debug console. */
     BOARD_InitDebugConsole();
-#endif
+    /* Disable SYSMPU. */
+    base->CESR &= ~SYSMPU_CESR_VLD_MASK;
+
+    CLOCK_EnableClock(kCLOCK_PortB);
+    PORT_SetPinMux(PORTB, 22, kPORT_MuxAsGpio);
+    GPIO_PinInit(GPIOB, 22, &b22) ;
     NVIC_SetPriority(SPI0_IRQn, 5);
-    PRINTF("Hello World\r\n");
-
-    semInit = xSemaphoreCreateBinary();
-
-    xTaskCreate(taskSend, "send data",700,NULL,3 ,NULL);
-    xTaskCreate(taskInit, "init",200,NULL,4 ,NULL);
+    /* Initialize lwIP from thread */
+    if (sys_thread_new("main", stack_init, NULL, INIT_THREAD_STACKSIZE, INIT_THREAD_PRIO) == NULL)
+    {
+        LWIP_ASSERT("main(): Task creation failed.", 0);
+    }
 
     vTaskStartScheduler();
-    while(1) {
 
-        __asm volatile ("nop");
-    }
-    return 0 ;
+    /* Will not get here unless a task calls vTaskEndScheduler ()*/
+    return 0;
 }
-
-
-void taskInit (void* args)
-{
-	rtosSPI_master_config_t config;
-
-	config.baudRate = 115200;
-	config.miso_pin = 3;
-	config.mode = TRANSFER_MODE_0;
-	config.mosi_pin = 2;
-	config.pcs_pin = 0;
-	config.port_mux = 2;
-	config.sclk_pin = 1;
-	config.spi_number = 0;
-	config.spi_port = 0;
-
-	rtosSPI_init(&config);
-
-	LCD_begin();
-	clearLCD();
-	setCursor(2,2);
-	while (1)
-	{
-		xSemaphoreGive(semInit);
-		vTaskSuspend(NULL);
-	}
-}
-void taskSend (void* args)
-{
-	xSemaphoreTake(semInit, portMAX_DELAY);
-	while(1)
-	{
-        portTickType xLastWakeTime;
-        xLastWakeTime = xTaskGetTickCount();
-		printImage(Cangrejo_perron_mono);
-      //  setPixel(1, 1);
-		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5000));
-	}
-
-}
+#endif

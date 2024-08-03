@@ -216,7 +216,6 @@ uint8_t setCursor(uint8_t x, uint8_t y);
 // create the LCD5110 structure
 LCD5110_t* LCD5110_make(uint8_t cursorX, uint8_t cursorY);
 void clearLCD();
-void clearLCDLine(uint8_t line);
 void setPixel(uint8_t x, uint8_t y);
 void setChar(char character, int x, int y);
 void setStr(char * dString, int x, int y);

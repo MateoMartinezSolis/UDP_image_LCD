@@ -121,25 +121,13 @@ void clearLCD() {
     setCursor(0, 0);
 }
 
-void clearLCDLine(uint8_t line) {
-    if (line < 48) {
-        GPIO_PinWrite(GPIOC, configLCD->kDcPin, FALSE);
-        setCursor(0, line);
-        GPIO_PinWrite(GPIOC, configLCD->kDcPin, 1);
-        for (uint8_t x = 0; x < 84; x++) {
-            uint8_t empty = 0x00;
-            //SPI_SendData(&empty, 1);
-            rtosSPI_send(0, &empty, 1);
-        }
-    }
-}
 void setPixel(uint8_t x, uint8_t y)
 {
     if ((x >= 0) && (x < MAX_WIDTH) && (y >= 0) && (y < MAX_HEIGHT))
     {
         uint8_t shift = y % 8;
         uint8_t index = x + (y / 8) * MAX_WIDTH;
-        displayMap[index] |= 1 << shift;
+       displayMap[index] |= 1 << shift;
 
         setCursor(x, y / 8);
         draw(&displayMap[index], 1);
