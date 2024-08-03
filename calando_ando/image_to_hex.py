@@ -18,7 +18,7 @@ def convert_image_to_hex(image_filename):
     return hex_array
 
 # Nombre de tu imagen
-image_filename = 'cucei_logo.bmp'
+image_filename = 'start.bmp'
 hex_array = convert_image_to_hex(image_filename)
 
 # Crear la variable con los valores hexadecimales concatenados
