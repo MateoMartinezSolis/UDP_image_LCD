@@ -181,3 +181,12 @@ void printImage(uint8_t* image)
 		draw(&image[z * MAX_WIDTH], MAX_WIDTH);
 	}
 }
+
+void printImageSized(uint8_t* image, uint8_t width)
+{
+	for (uint8_t  z = 0; z < MAX_HEIGHT / 8; z++)
+	{
+		setCursor(0, z);
+		draw(&image[z * width], width);
+	}
+}

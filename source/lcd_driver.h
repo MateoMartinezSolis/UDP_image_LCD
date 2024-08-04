@@ -221,4 +221,5 @@ void setChar(char character, int x, int y);
 void setStr(char * dString, int x, int y);
 void print_clock_lcd(clock clock_lcd, int x, int y);
 void printImage(uint8_t* image);
+void printImageSized(uint8_t *image, uint8_t width);
 #endif //LCD_5110_H
